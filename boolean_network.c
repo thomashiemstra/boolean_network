@@ -6,8 +6,8 @@
 #include <stdint.h>
 
 #define MaxCycleLength 1000
-#define N 13
-#define double_N 13.0
+#define N 10
+#define double_N 10.0
 
 /* source: http://c-faq.com/lib/gaussian.html */
 double gaussrand(double variance){
@@ -142,35 +142,61 @@ void saveCycles(char *fileName,uint64_t *cycle_length,int max){
     fclose(file);
 }
 
-int main(){
-int i,j,i2;
-int total = 10000; //total amount of different J's
+void setJ(double J[N][N], double k){
+    int i,j;
+    double Js[N][N]; //symmetric part
+    double Ja[N][N]; //antisymmetric part
 
-double J[N][N];
-int8_t Sigma[N]; //single byte signed int since it's only 1 or -1 anyway
-char name[1024];
-
-uint64_t lengths[MaxCycleLength]; //cycles longer than MaxCycleLength steps are ignored
-    for(i=0; i<MaxCycleLength; i++)
-        lengths[i] = 0;
-
-    for(i2=0; i2<total; i2++){
-        if (!(i2 % (total/100))){
-            printf("\r");
-            printf("%.3d%% Completed",100*i2/total);
+    for(i=0; i<N; i++){
+        for(j=i; j<N; j++){
+            Js[i][j] = gaussrand(1/double_N);
+            Ja[i][j] = gaussrand(1/double_N);
         }
-        srand(i2 + 111); /* seed for the J matrix*/
-            for(i=0; i<N; i++){
-                for(j=0; j<N; j++){
-                    J[i][j] = gaussrand(1/double_N);
-                    //printf("%lf  ",J[i][j]);
-                }
-            }
-        sprintf(name,"dump%d.dat",i2);
-        getRandomCycleLengths(name,Sigma,J,1000,i2,lengths);
-        //getAllCycleLengths(name,Sigma,J,lengths);
     }
-    sprintf(name,"res_N_%d.dat",N);
-    saveCycles(name,lengths,100);
+    for(i=0; i<N; i++){
+        for(j=0; j<i; j++){
+            Ja[i][j] = Ja[j][i];
+            Js[i][j] = -Js[j][i];
+        }
+    }
+    for(i=0; i<N; i++){
+        for(j=0; j<N; j++){
+            J[i][j] = Ja[i][j] + k*Js[i][j];
+        }
+    }
+}
+
+int main(){
+    double J[N][N];
+    setJ(J,1);
+//int i,j,i2;
+//int total = 10000; //total amount of different J's
+//
+//double J[N][N];
+//int8_t Sigma[N]; //single byte signed int since it's only 1 or -1 anyway
+//char name[1024];
+//
+//uint64_t lengths[MaxCycleLength]; //cycles longer than MaxCycleLength steps are ignored
+//    for(i=0; i<MaxCycleLength; i++)
+//        lengths[i] = 0;
+//
+//    for(i2=0; i2<total; i2++){
+//        if (!(i2 % (total/100))){
+//            printf("\r");
+//            printf("%.3d%% Completed",100*i2/total);
+//        }
+//        srand(i2 + 111); /* seed for the J matrix*/
+//            for(i=0; i<N; i++){
+//                for(j=0; j<N; j++){
+//                    J[i][j] = gaussrand(1/double_N);
+//                    //printf("%lf  ",J[i][j]);
+//                }
+//            }
+//        sprintf(name,"dump%d.dat",i2);
+//        getRandomCycleLengths(name,Sigma,J,1000,i2,lengths);
+//        //getAllCycleLengths(name,Sigma,J,lengths);
+//    }
+//    sprintf(name,"res_N_%d.dat",N);
+//    saveCycles(name,lengths,MaxCycleLength);
 }
 
