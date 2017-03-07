@@ -5,8 +5,9 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-#define N 10
-#define double_N 10.0
+#define MaxCycleLength 1000
+#define N 13
+#define double_N 13.0
 
 /* source: http://c-faq.com/lib/gaussian.html */
 double gaussrand(double variance){
@@ -45,17 +46,17 @@ int ii;
     }
     return 1;
 }
-/* calculate the next time step and look for cycles */
+/* do the time evolution and look for a cycle (should I check a cycle by letting it run a little more?) */
 int advanceTime(int8_t *Sigma, double J[N][N] ){
     int i,j,k;
-    int8_t foundConfigs[(int)pow(2,N)][N];
+    int8_t foundConfigs[N*100][N]; //It usually doesn't take that many steps to find a cycle I found 217 at most for N=16 so N*100 should be more than enough
     int configs = 1; //total amount of found configurations
-    double h[N];
+    double h[N]; //the input equation (2)
 
      for(i=0; i<N; i++) //save the initial configuration
         foundConfigs[0][i] = Sigma[i];
 
-    while(configs < (int)pow(2,N) ){
+    while(configs < (int)pow(2,N) ){ //for safety while(true) seems dangerous
         for(i=0; i<N; i++){
             h[i] = 0;
             for(j=0; j<N; j++){
@@ -67,16 +68,18 @@ int advanceTime(int8_t *Sigma, double J[N][N] ){
             //printf("%d  ",Sigma[i]);
         }
         //printf("\t %d \n",configs);
-        /*check if the newly found configuration Sigma matches a previous one */
+        /*check if the newly found configuration Sigma matches a previous one, if so we have a cycle (really? that's good enough?) */
         for(k=configs-1; k>=0; k--){
-            if(checkIfEqual(foundConfigs[k],Sigma))
+            if(checkIfEqual(foundConfigs[k],Sigma)){
                 return configs - k; //cycle length
+            }
         }
         configs++;
     }
+
     return -1;
 }
-/* converts an int to an N bits!!! array */
+/* going from n=0 to n=2^N goes through every possible initial configuration*/
 void setSigma(int8_t *Sigma,int n){
     int i,j;
     for(i=0; i<N; i++)
@@ -93,30 +96,7 @@ void setSigma(int8_t *Sigma,int n){
         }
     }
 }
-/* writes cycle lengths from all initial configurations*/
-void getAllCycleLengths(char *fileName,int8_t *Sigma, double J[N][N]){
-    int l;
-    int cycle_length[(int)pow(2,N)];
-    FILE *file;
-    file = fopen(fileName,"wb");
-    if(file){
-        for(l=0; l<pow(2,N); l++){
-            setSigma(Sigma,l);
-            cycle_length[l] = advanceTime(Sigma,J);
-            fprintf(file,"%d \n",cycle_length[l]);
-        }
-    }
-    fclose(file);
-}
-
-void getAllCycleLengthsTest(char *fileName,int8_t *Sigma, double J[N][N],uint64_t *res){
-    int l;
-    for(l=0; l<pow(2,N); l++){
-        setSigma(Sigma,l);
-        res[advanceTime(Sigma,J)]++;
-    }
-}
-
+/* too many times have I had to add this manually so now it's a function */
 void printSigma(int8_t *Sigma){
         int i1;
         printf("Sigma=");
@@ -124,22 +104,30 @@ void printSigma(int8_t *Sigma){
             printf("%d ",Sigma[i1]);
         printf("\n");
 }
-/* writes n cycle lengths from n random initial configurations*/
-void getRandomCycleLengths(char *fileName,int8_t *Sigma, double J[N][N],int n,int x){
+/* goes through every single initial configuration and puts the cycle lengths in the res array*/
+void getAllCycleLengths(char *fileName,int8_t *Sigma, double J[N][N],uint64_t *res){
     int l;
-    int cycle_length[(int)pow(2,N)];
-    FILE *file;
-    file = fopen(fileName,"wb");
-    srand(x);
-    if(file){
-        printf("%d \n",x);
-        for(l=0; l<n; l++){
-            Sigma[l] = sign( rand()-RAND_MAX*0.5 );
-            cycle_length[l] = advanceTime(Sigma,J);
-            fprintf(file,"%d \n",cycle_length[l]);
-        }
+    int cycle_length;
+    for(l=0; l<pow(2,N); l++){
+        setSigma(Sigma,l);
+        cycle_length = advanceTime(Sigma,J);
+        if(cycle_length<MaxCycleLength)
+            res[cycle_length]++;
     }
-    fclose(file);
+}
+/* goes through n random initial configurations and puts the cycle lengths in the res array*/
+void getRandomCycleLengths(char *fileName,int8_t *Sigma, double J[N][N],int n,int x,uint64_t *res){
+    int l;
+    int l1;
+    int cycle_length;
+    for(l1=0; l1<n; l1++){
+        srand(x+l1);
+        for(l=0; l<N; l++)
+            Sigma[l] = sign( rand()-RAND_MAX*0.5 );
+            cycle_length = advanceTime(Sigma,J);
+            if(cycle_length<MaxCycleLength)
+                res[cycle_length]++;
+    }
 }
 
 void saveCycles(char *fileName,uint64_t *cycle_length,int max){
@@ -156,13 +144,14 @@ void saveCycles(char *fileName,uint64_t *cycle_length,int max){
 
 int main(){
 int i,j,i2;
-int total = 1000; //total amount of different J's
+int total = 10000; //total amount of different J's
 
 double J[N][N];
 int8_t Sigma[N]; //single byte signed int since it's only 1 or -1 anyway
 char name[1024];
-uint64_t lengths[100]; //cycles longer than 100 are ignored
-    for(i=0; i<100; i++)
+
+uint64_t lengths[MaxCycleLength]; //cycles longer than MaxCycleLength steps are ignored
+    for(i=0; i<MaxCycleLength; i++)
         lengths[i] = 0;
 
     for(i2=0; i2<total; i2++){
@@ -170,8 +159,6 @@ uint64_t lengths[100]; //cycles longer than 100 are ignored
             printf("\r");
             printf("%.3d%% Completed",100*i2/total);
         }
-
-
         srand(i2 + 111); /* seed for the J matrix*/
             for(i=0; i<N; i++){
                 for(j=0; j<N; j++){
@@ -180,19 +167,10 @@ uint64_t lengths[100]; //cycles longer than 100 are ignored
                 }
             }
         sprintf(name,"dump%d.dat",i2);
-        //getRandomCycleLengths(name,Sigma,J,100,i2);
-        //getAllCycleLengths(name,Sigma,J);
-        getAllCycleLengthsTest(name,Sigma,J,lengths);
-
+        getRandomCycleLengths(name,Sigma,J,1000,i2,lengths);
+        //getAllCycleLengths(name,Sigma,J,lengths);
     }
     sprintf(name,"res_N_%d.dat",N);
     saveCycles(name,lengths,100);
-
-//    char command[1024];
-//    sprintf(command,"copy *.dat all.txt");
-//    system(command);
-//    sprintf(command,"del *.dat");
-//    system(command);
-
 }
 
