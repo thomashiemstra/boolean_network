@@ -9,8 +9,8 @@
 #include <algorithm>
 
 #define MaxCycleLength 100
-#define N 6
-#define double_N 6.0
+#define N 8
+#define double_N 8.0
 
 using namespace std;
 
