@@ -9,8 +9,8 @@
 #include <algorithm>
 
 #define MaxCycleLength 100
-#define N 10
-#define double_N 10.0
+#define N 6
+#define double_N 6.0
 
 using namespace std;
 
@@ -109,21 +109,21 @@ void setSigmaRandom(int16_t *Sigma,int x){
         for(l=0; l<N; l++)
             Sigma[l] = sign( rand()-RAND_MAX*0.5 );
 }
-/* going from n=0 to n=2^N goes through every possible initial configuration horribly inefficient*/
+/* going from n=0 to n=2^N goes through every possible initial configuration*/
 void setSigma(int16_t *Sigma,int n){
     int c,k;
-    for (c = N; c >= 0; c--)
+    for (c = N-1; c >= 0; c--)
     {
     k = n >> c;
     if (k & 1)
       Sigma[c] = 1;
     else
-      Sigma[c] = 0;
+      Sigma[c] = -1;
     }
 
 }
 /* goes through every single initial configuration and puts the cycle lengths in the res array*/
-void getAllCycleLengths(double J[N][N],uint64_t *res,double &l_res, double &l_prime_res){
+void getAllCycleLengths(double J[N][N],uint64_t *res,double &l_res, double &l_prime_res,double &fixed_points){
     int l;
     int cycle_length;
     double n,result;
@@ -132,14 +132,20 @@ void getAllCycleLengths(double J[N][N],uint64_t *res,double &l_res, double &l_pr
     vector<uint64_t> basin;
     for(l=0; l<pow(2,N); l++){
         setSigma(Sigma,l);
-        /*cycle_length =*/ advanceTime(Sigma,J,attractors,basin);
+        cycle_length = advanceTime(Sigma,J,attractors,basin);
 //        if(cycle_length<MaxCycleLength)
 //            res[cycle_length]++;
+
     }
     n = attractors.size() ;
+    for(l=0; l<n; l++){
+        if(attractors[l].size()==1){
+            fixed_points++;
+        }
+    }
     result = 0;
     for(l=0; l<n; l++)
-        result += attractors[l].size();
+        result += attractors[l].size(); /* cycle length of the attractor */
     l_res = (1.0/n)*result;
 
     result = 0;
@@ -152,6 +158,7 @@ void getRandomCycleLengths(double J[N][N],int configs,uint64_t *res,double &l_re
     int l;
     int l1;
     int cycle_length;
+    int fixed_points = 0;
     double n,result;
     int16_t Sigma[N]; /*int8_t are single byte signed ints since it's only 1 or -1 anyway*/
     vector<vector<uint64_t> > attractors;
@@ -160,20 +167,22 @@ void getRandomCycleLengths(double J[N][N],int configs,uint64_t *res,double &l_re
     for(l1=0; l1<configs; l1++){
         setSigmaRandom(Sigma,l1);
         cycle_length = advanceTime(Sigma,J,attractors,basin);
-        if(cycle_length<MaxCycleLength)
-            res[cycle_length]++;
+//        if(cycle_length<MaxCycleLength)
+//            res[cycle_length]++;
+        if(cycle_length==1)
+            fixed_points++;
         //cout << "cycle length=" << cycle_length << endl;
     }
     n = attractors.size() ;
     result = 0;
     for(l=0; l<n; l++)
-        result += attractors[l].size();
+        result += attractors[l].size(); /* cycle length of the attractor */
     l_res = (1.0/n)*result;
 
     result = 0;
     for(l=0; l<n; l++)
         result += attractors[l].size()*basin[l];
-    l_prime_res = (1.0/configs)*(1.0/(pow(2,N)))*result;
+    l_prime_res = (1.0/configs)*result; /* since we only have a fraction of the configurations this should work now*/
 }
 
 void saveCycles(char *fileName,uint64_t *cycle_length,int max){
@@ -213,7 +222,7 @@ void setJSA(double J[N][N], double k,int x){
         }
     }
 }
-/* set J with just gaussian variables, x is the seed for srand */
+/* set J with just gaussian variables, x is the seed for srand() */
 void setJSimple(double J[N][N], int x){
 int i,j;
 srand(x + 111); /* seed for the J matrix*/
@@ -234,7 +243,7 @@ int sigmaToInt(int16_t *Sigma){
     return res;
 }
 
-void saveL(char *fileName,double l_avrg){
+void saveNum(char *fileName,double l_avrg){
     int l;
     FILE *file;
     file = fopen(fileName,"wb");
@@ -244,20 +253,7 @@ void saveL(char *fileName,double l_avrg){
     fclose(file);
 }
 
-void saveL_prime(char *fileName,double l_prime_avrg){
-    int l;
-    FILE *file;
-    file = fopen(fileName,"wb");
-    if(file){
-            fprintf(file,"N=%d \t %lf\n",N,l_prime_avrg);
-    }
-    fclose(file);
-}
-
 int main(){
-
-
-
 int i,i2;
 int total = 1000; /*total amount of different J's*/
 int initial_configs = 1000; /*total amount of different configurations which are time evolved*/
@@ -269,7 +265,7 @@ double l_avrg; /* average attractor size */
 double l_prime_avrg; /* basin-size-weighted average attractor size*/
 double l,l_prime;
 double k = 0.5;
-
+double fixed_points =0;
 l_avrg = l_prime_avrg = 0;
 for(i=0; i<MaxCycleLength; i++)
     lengths[i] = 0;
@@ -283,19 +279,23 @@ for(i=0; i<MaxCycleLength; i++)
         }
         //setJSimple(J,i2*2);
         setJSA(J,k,i2*2);
-        getRandomCycleLengths(J,initial_configs,lengths,l,l_prime);
-        //getAllCycleLengths(J,lengths,l,l_prime);
+        //getRandomCycleLengths(J,initial_configs,lengths,l,l_prime);
+        getAllCycleLengths(J,lengths,l,l_prime,fixed_points);
         l_avrg += l; l_prime_avrg += l_prime;
     }
     cout << endl;
+    fixed_points /= (double)total;
     l_avrg /= (double)total; l_prime_avrg /= (double)total;
-    cout << "l_avrg=" << l_avrg << "    l_prime_avrg=" << l_prime_avrg << endl;
+    cout << "log fixed_points=" <<log(fixed_points)<< endl;
+//    cout << "l_avrg=" << l_avrg << "    l_prime_avrg=" << l_prime_avrg << endl;
 //    sprintf(name,"res_N_cpp_%d_k=%lf.dat",N,k);
 //    saveCycles(name,lengths,MaxCycleLength);
-    sprintf(name,"L_N_cpp_%d_k=%lf.dat",N,k);
-    saveL(name,l_avrg);
-    sprintf(name,"L_prime_N_cpp_%d_k=%lf.dat",N,k);
-    saveL(name,l_prime_avrg);
+//    sprintf(name,"L_N_cpp_%d_k=%lf.dat",N,k);
+//    saveNum(name,l_avrg);
+//    sprintf(name,"L_prime_N_cpp_%d_k=%lf.dat",N,k);
+//    saveNum(name,l_prime_avrg);
+    sprintf(name,"log_fixed_points_%d_k=%lf.dat",N,k);
+    saveNum(name,log(fixed_points));
 
 }
 
