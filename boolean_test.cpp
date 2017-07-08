@@ -56,7 +56,7 @@ int ii;
     }
     return 1;
 }
-/* do the time evolution and look for a cycle (should I check a cycle by letting it run a little more?) */
+/* do the time evolution and look for a cycle */
 int advanceTime(int16_t *Sigma, double J[N][N], vector<vector<uint64_t> > &attractors,vector<uint64_t> &basin){
     int i,j,k,k1,k2,k3;
     int16_t foundConfigs[N*100][N]; //It usually doesn't take that many steps to find a cycle I found 217 at most for N=16 so N*100 should be more than enough
